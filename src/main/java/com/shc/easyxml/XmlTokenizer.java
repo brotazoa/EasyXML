@@ -1,292 +1,283 @@
 package com.shc.easyxml;
 
+import java.io.InputStream;
+
 /**
  * @author Sri Harsha Chilakapati
  */
 public class XmlTokenizer
 {
-    XmlToken currentToken;
+	XmlToken currentToken;
 
-    private StringStream input;
+	private XmlInputStream input;
 
-    private boolean textParseMode = false;
-    private boolean cdataMode = false;
+	private boolean textParseMode = false;
+	private boolean cdataMode = false;
 
-    public XmlTokenizer(String input)
-    {
-        this.input = new StringStream(input);
-    }
+	public XmlTokenizer(String input)
+	{
+		this.input = new XmlInputStream(input);
+	}
 
-    public XmlToken extract()
-    {
-        // Eat the whitespace before the token
-        char ch = input.getCurrentChar();
+	public XmlTokenizer(InputStream in)
+	{
+		this.input = new XmlInputStream(in);
+	}
 
-        while (ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n')
-            ch = input.getNextChar();
+	public XmlToken extract()
+	{
+		// Eat the whitespace before the token
+		char ch = input.getCurrentChar();
 
-        if (input.getCurrentChar() == ']')
-        {
-            // Must be a CDATA_END token
-            expect("]]>");
-            textParseMode = true;
-            cdataMode = false;
-            return currentToken =
-                    new XmlToken(XmlToken.Type.CDATA_END, "]]>", input.line, input.column - 3, input.column);
-        }
+		while (ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n')
+			ch = input.getNextChar();
 
-        if (input.getCurrentChar() == '<' && !cdataMode)
-        {
-            // Should check if the next chars are !--, if it is then it is a comment
-            // Otherwise it can also be a CDATA_BEGIN ![CDATA[
-            if (input.peekNextChar() == '!')
-            {
-                input.getNextChar();
+		if (input.getCurrentChar() == ']')
+		{
+			// Must be a CDATA_END token
+			expect("]]>");
+			textParseMode = true;
+			cdataMode = false;
+			return currentToken = new XmlToken(XmlToken.Type.CDATA_END, "]]>", input.line, input.column - 3, input.column);
+		}
 
-                // If the next character is [ then it should be a CDATA_BEGIN
-                if (input.peekNextChar() == '[')
-                {
-                    input.getNextChar();
+		if (input.getCurrentChar() == '<' && !cdataMode)
+		{
+			// Should check if the next chars are !--, if it is then it is a comment
+			// Otherwise it can also be a CDATA_BEGIN ![CDATA[
+			if (input.peekNextChar() == '!')
+			{
+				input.getNextChar();
 
-                    int start = input.column - 3;
-                    int line = input.line;
+				// If the next character is [ then it should be a CDATA_BEGIN
+				if (input.peekNextChar() == '[')
+				{
+					input.getNextChar();
 
-                    expect("[CDATA[");
+					int start = input.column - 3;
+					int line = input.line;
 
-                    textParseMode = true;
-                    cdataMode = true;
-                    return currentToken
-                            = new XmlToken(XmlToken.Type.CDATA_BEGIN, "<!CDATA[", line, start, input.column);
-                }
-                else
-                {
-                    // The next two chars should also be hyphens, otherwise throw a parse exception
-                    for (int i = 0; i < 2; i++)
-                        if (input.getNextChar() != '-')
-                            throw new ParseException("Error at " + input.line + ":"
-                                                     + input.column + ": Expected a hyphen (-), but got "
-                                                     + input.getCurrentChar());
+					expect("[CDATA[");
 
-                    // Now eat everything until a sequence of --> appears
-                    while (true)
-                    {
-                        if (input.getCurrentChar() == '-')
-                        {
-                            if (input.getNextChar() == '-')
-                                if (input.getNextChar() == '>')
-                                {
-                                    input.getNextChar();
-                                    textParseMode = true;
-                                    return extract();
-                                }
-                        }
-                        else
-                            input.getNextChar();
-                    }
-                }
-            }
+					textParseMode = true;
+					cdataMode = true;
+					return currentToken = new XmlToken(XmlToken.Type.CDATA_BEGIN, "<!CDATA[", line, start, input.column);
+				}
+				else
+				{
+					// The next two chars should also be hyphens, otherwise throw a parse exception
+					for (int i = 0; i < 2; i++)
+						if (input.getNextChar() != '-')
+							throw new ParseException("Error at " + input.line + ":"
+									+ input.column + ": Expected a hyphen (-), but got "
+									+ input.getCurrentChar());
 
-            textParseMode = false;
+					// Now eat everything until a sequence of --> appears
+					while (true)
+					{
+						if (input.getCurrentChar() == '-')
+						{
+							if (input.getNextChar() == '-')
+								if (input.getNextChar() == '>')
+								{
+								input.getNextChar();
+								textParseMode = true;
+								return extract();
+								}
+						}
+						else
+							input.getNextChar();
+					}
+				}
+			}
 
-            // Should check if the next one is a ?, if it is, just skip until the end is reached
-            if (input.peekNextChar() == '?')
-            {
-                while (input.getCurrentChar() != '>')
-                    input.getNextChar();
+			textParseMode = false;
 
-                input.getNextChar();
+			// Should check if the next one is a ?, if it is, just skip until the end is reached
+			if (input.peekNextChar() == '?')
+			{
+				while (input.getCurrentChar() != '>')
+					input.getNextChar();
 
-                // Extract a new token after the prologue
-                return currentToken = extract();
-            }
+				input.getNextChar();
 
-            // Consume the < symbol
-            input.getNextChar();
+				// Extract a new token after the prologue
+				return currentToken = extract();
+			}
 
-            // Should check if the next char is /, if it is, then it is a TAG_END token
-            if (input.getCurrentChar() == '/')
-            {
-                input.getNextChar();
-                return currentToken
-                        = new XmlToken(XmlToken.Type.TAG_CLOSE, "</", input.line, input.column - 2, input.column);
-            }
+			// Consume the < symbol
+			input.getNextChar();
 
-            // Otherwise it's a tag begin token
+			// Should check if the next char is /, if it is, then it is a TAG_END token
+			if (input.getCurrentChar() == '/')
+			{
+				input.getNextChar();
+				return currentToken = new XmlToken(XmlToken.Type.TAG_CLOSE, "</", input.line, input.column - 2, input.column);
+			}
 
-            return currentToken
-                    = new XmlToken(XmlToken.Type.TAG_BEGIN, "<", input.line, input.column - 1, input.column);
-        }
+			// Otherwise it's a tag begin token
 
-        if (input.getCurrentChar() == '"' || input.getCurrentChar() == '\'')
-        {
-            // The STRING token, which is the value of the attribute.
-            int line = input.line;
-            int column = input.column;
+			return currentToken = new XmlToken(XmlToken.Type.TAG_BEGIN, "<", input.line, input.column - 1, input.column);
+		}
 
-            // Check for ' or " as both are valid strings
-            char stringStart = input.getCurrentChar();
+		if (input.getCurrentChar() == '"' || input.getCurrentChar() == '\'')
+		{
+			// The STRING token, which is the value of the attribute.
+			int line = input.line;
+			int column = input.column;
 
-            StringBuilder builder = new StringBuilder();
+			// Check for ' or " as both are valid strings
+			char stringStart = input.getCurrentChar();
 
-            while ((ch = input.getNextChar()) != stringStart)
-                builder.append(ch);
+			StringBuilder builder = new StringBuilder();
 
-            input.getNextChar();
+			while ((ch = input.getNextChar()) != stringStart)
+				builder.append(ch);
 
-            String value = builder.toString()
-                    .replaceAll("&lt;", "<")
-                    .replaceAll("&gt;", ">")
-                    .replaceAll("&apos;", "'")
-                    .replaceAll("&quot;", "\"")
-                    .replaceAll("&amp;", "&");
+			input.getNextChar();
 
-            return currentToken = new XmlToken(XmlToken.Type.STRING, value, line, column, input.column - 1);
-        }
+			String value = builder.toString()
+					.replaceAll("&lt;", "<")
+					.replaceAll("&gt;", ">")
+					.replaceAll("&apos;", "'")
+					.replaceAll("&quot;", "\"")
+					.replaceAll("&amp;", "&");
 
-        if (textParseMode)
-        {
-            // Read text between tags here. We read until a tag begin character is found.
-            int lineStart = input.line;
-            int start = input.column;
+			return currentToken = new XmlToken(XmlToken.Type.STRING, value, line, column, input.column - 1);
+		}
 
-            StringBuilder builder = new StringBuilder();
-            builder.append(ch);
+		if (textParseMode)
+		{
+			// Read text between tags here. We read until a tag begin character is found.
+			int lineStart = input.line;
+			int start = input.column;
 
-            while ((ch = input.getNextChar()) != StringStream.EOF)
-            {
-                if (cdataMode)
-                {
-                    if (follows("]]>"))
-                        break;
-                }
-                else
-                    if (ch == '<')
-                        break;
+			StringBuilder builder = new StringBuilder();
+			builder.append(ch);
 
-                builder.append(ch);
-            }
+			while ((ch = input.getNextChar()) != StringStream.EOF)
+			{
+				if (cdataMode)
+				{
+					if (follows("]]>"))
+						break;
+				}
+				else if (ch == '<')
+					break;
 
-            String value = builder.toString().trim()
-                    .replaceAll("\\n(\\s)*", " ");
+				builder.append(ch);
+			}
 
-            int lineEnd = input.line;
-            int end = input.column;
+			String value = builder.toString().trim()
+					.replaceAll("\\n(\\s)*", " ");
 
-            textParseMode = false;
+			int lineEnd = input.line;
+			int end = input.column;
 
-            if (!value.equals(""))
-                return currentToken = new XmlToken(XmlToken.Type.TEXT, value, lineStart, lineEnd, start, end);
+			textParseMode = false;
 
-            return currentToken = extract();
-        }
-        else
-        {
-            char previousChar;
+			if (!value.equals(""))
+				return currentToken = new XmlToken(XmlToken.Type.TEXT, value, lineStart, lineEnd, start, end);
 
-            if (Character.isLetter(input.getCurrentChar()) || input.getCurrentChar() == '_')
-            {
-                // It is a name, so read the name as the word
-                StringBuilder builder = new StringBuilder();
+			return currentToken = extract();
+		}
+		else
+		{
+			char previousChar;
 
-                int line = input.line;
-                int start = input.column;
+			if (Character.isLetter(input.getCurrentChar()) || input.getCurrentChar() == '_')
+			{
+				// It is a name, so read the name as the word
+				StringBuilder builder = new StringBuilder();
 
-                builder.append(previousChar = input.getCurrentChar());
+				int line = input.line;
+				int start = input.column;
 
-                while (Character.isLetterOrDigit(input.getNextChar())
-                       || input.getCurrentChar() == '_'
-                       || input.getCurrentChar() == ':')
-                {
-                    if (input.getCurrentChar() == ':' && previousChar == ':')
-                        throw new ParseException("Unexpected namespace separator at "
-                                                 + input.line + ":" + input.column);
+				builder.append(previousChar = input.getCurrentChar());
 
-                    builder.append(previousChar = input.getCurrentChar());
-                }
+				while (Character.isLetterOrDigit(input.getNextChar())
+						|| input.getCurrentChar() == '_'
+						|| input.getCurrentChar() == ':')
+				{
+					if (input.getCurrentChar() == ':' && previousChar == ':')
+						throw new ParseException("Unexpected namespace separator at "
+								+ input.line + ":" + input.column);
 
-                return currentToken
-                        = new XmlToken(XmlToken.Type.NAME, builder.toString(), line, start, input.column);
-            }
-        }
+					builder.append(previousChar = input.getCurrentChar());
+				}
 
-        if (input.getCurrentChar() == '>')
-        {
-            // The TAG_END token is this one. Ends a tag, and goes into it's contents.
-            int line = input.line;
-            int column = input.column;
+				return currentToken = new XmlToken(XmlToken.Type.NAME, builder.toString(), line, start, input.column);
+			}
+		}
 
-            input.getNextChar();
-            textParseMode = true;
+		if (input.getCurrentChar() == '>')
+		{
+			// The TAG_END token is this one. Ends a tag, and goes into it's contents.
+			int line = input.line;
+			int column = input.column;
 
-            return currentToken = new XmlToken(XmlToken.Type.TAG_END, ">", line, column, column + 1);
-        }
+			input.getNextChar();
+			textParseMode = true;
 
-        if (input.getCurrentChar() == '=')
-        {
-            // Equals token
-            int line = input.line;
-            int column = input.column;
+			return currentToken = new XmlToken(XmlToken.Type.TAG_END, ">", line, column, column + 1);
+		}
 
-            input.getNextChar();
+		if (input.getCurrentChar() == '=')
+		{
+			// Equals token
+			int line = input.line;
+			int column = input.column;
 
-            return currentToken = new XmlToken(XmlToken.Type.EQUALS, "=", line, column, column + 1);
-        }
+			input.getNextChar();
 
-        if (input.getCurrentChar() == '/')
-        {
-            // Check if the next char is > symbol. If so, it must be a simple close tag
-            if (input.peekNextChar() == '>')
-            {
-                int line = input.line;
-                int column = input.column;
+			return currentToken = new XmlToken(XmlToken.Type.EQUALS, "=", line, column, column + 1);
+		}
 
-                input.getNextChar();
-                input.getNextChar();
-                textParseMode = true;
+		if (input.getCurrentChar() == '/')
+		{
+			// Check if the next char is > symbol. If so, it must be a simple close tag
+			if (input.peekNextChar() == '>')
+			{
+				int line = input.line;
+				int column = input.column;
 
-                return currentToken = new XmlToken(XmlToken.Type.SIMPLE_TAG_CLOSE, "/>", line, column, column + 2);
-            }
-        }
+				input.getNextChar();
+				input.getNextChar();
+				textParseMode = true;
 
-        return currentToken = new XmlToken(XmlToken.Type.EOF, "", input.line, input.column, input.column);
-    }
+				return currentToken = new XmlToken(XmlToken.Type.SIMPLE_TAG_CLOSE, "/>", line, column, column + 2);
+			}
+		}
 
-    private void expect(String text)
-    {
-        char ch = input.getCurrentChar();
+		return currentToken = new XmlToken(XmlToken.Type.EOF, "", input.line, input.column, input.column);
+	}
 
-        for (char c : text.toCharArray())
-        {
-            if (c != ch)
-                throw new ParseException("Expected '" + c + "' at " + input.line + ":" + input.column +
-                                         " but got '" + ch + "'");
+	private void expect(String text)
+	{
+		char ch = input.getCurrentChar();
 
-            ch = input.getNextChar();
-        }
-    }
+		for (char c : text.toCharArray())
+		{
+			if (c != ch)
+				throw new ParseException("Expected '" + c + "' at " + input.line + ":" + input.column +
+						" but got '" + ch + "'");
 
-    private boolean follows(String text)
-    {
-        int column = input.column;
-        int line = input.line;
-        int index = input.index;
-        boolean result = true;
+			ch = input.getNextChar();
+		}
+	}
 
-        for (char ch : text.toCharArray())
-        {
-            if (input.getCurrentChar() != ch)
-            {
-                result = false;
-                break;
-            }
-
-            input.getNextChar();
-        }
-
-        input.column = column;
-        input.line = line;
-        input.index = index;
-
-        return result;
-    }
+	private boolean follows(String text)
+	{
+		boolean result = true;
+		char[] follow = input.peekNextChars(text.length());
+		for (int i = 0; i < text.length(); i++)
+		{
+			if (text.charAt(i) != follow[i])
+			{
+				result = false;
+				break;
+			}
+		}
+		return result;
+	}
 }

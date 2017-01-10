@@ -10,25 +10,30 @@ import java.io.InputStreamReader;
  */
 class Util
 {
-    static String readToString(String path)
-    {
-        InputStream is = Util.class.getClassLoader().getResourceAsStream(path);
+	static String readToString(String path)
+	{
+		InputStream is = Util.class.getClassLoader().getResourceAsStream(path);
 
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(is)))
-        {
-            String line, data = "";
+		try (BufferedReader reader = new BufferedReader(new InputStreamReader(is)))
+		{
+			String line, data = "";
 
-            while ((line = reader.readLine()) != null)
-                data += line + "\n";
+			while ((line = reader.readLine()) != null)
+				data += line + "\n";
 
-            reader.close();
-            return data;
-        }
-        catch (IOException e)
-        {
-            e.printStackTrace();
-        }
+			reader.close();
+			return data;
+		}
+		catch (IOException e)
+		{
+			e.printStackTrace();
+		}
 
-        return null;
-    }
+		return null;
+	}
+
+	static InputStream getInputStream(String path)
+	{
+		return Util.class.getClassLoader().getResourceAsStream(path);
+	}
 }
